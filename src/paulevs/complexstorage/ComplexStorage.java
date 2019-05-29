@@ -40,6 +40,12 @@ public class ComplexStorage extends JavaPlugin implements Listener
 			this.start = start;
 			this.end = end;
 		}
+		
+		@Override
+		public boolean equals(Object obj)
+		{
+			return obj instanceof CoordinatePair && ((CoordinatePair) obj).end.equals(end) && ((CoordinatePair) obj).start.equals(start);
+		}
 	}
 	
 	private class StorageData
@@ -157,35 +163,43 @@ public class ComplexStorage extends JavaPlugin implements Listener
 			if (bounds != null && isValidBounds(bounds) && checkStructure(bounds.start, bounds.end))
 			{
 				e.setCancelled(true);
-				List<ItemStack> items = getContainedItems(bounds);
-				Collections.sort(items, new SortByName());
-				Inventory[] inv = new Inventory[countStorageSpace(bounds)];
-				int index = 0;
-				boolean add = items.size() > 0;
-				for (int i = 0; i < inv.length; i++)
+				if (isStorageInUse(bounds))
 				{
-					inv[i] = Bukkit.createInventory(null, 36, String.format(titleFormat, i + 1, inv.length));
-					fillControls(inv[i]);
-					if (add)
-						for (int j = 0; j < 27; j++)
-						{
-							inv[i].setItem(j, items.get(index++));
-							if (index >= items.size())
-							{
-								add = false;
-								break;
-							}
-						}
+					e.getPlayer().sendMessage(inUsage);
+					return;
 				}
-				
-				StorageData st = new StorageData();
-				st.bounds = bounds;
-				st.inventories = inv;
-				st.index = 0;
-				st.mustOpen = false;
-				storageData.put(e.getPlayer(), st);
-				
-				e.getPlayer().openInventory(inv[0]);
+				else
+				{
+					List<ItemStack> items = getContainedItems(bounds);
+					Collections.sort(items, new SortByName());
+					Inventory[] inv = new Inventory[countStorageSpace(bounds)];
+					int index = 0;
+					boolean add = items.size() > 0;
+					for (int i = 0; i < inv.length; i++)
+					{
+						inv[i] = Bukkit.createInventory(null, 36, String.format(titleFormat, i + 1, inv.length));
+						fillControls(inv[i]);
+						if (add)
+							for (int j = 0; j < 27; j++)
+							{
+								inv[i].setItem(j, items.get(index++));
+								if (index >= items.size())
+								{
+									add = false;
+									break;
+								}
+							}
+					}
+					
+					StorageData st = new StorageData();
+					st.bounds = bounds;
+					st.inventories = inv;
+					st.index = 0;
+					st.mustOpen = false;
+					storageData.put(e.getPlayer(), st);
+					
+					e.getPlayer().openInventory(inv[0]);
+				}
 			}
 		}
 	}
@@ -202,8 +216,11 @@ public class ComplexStorage extends JavaPlugin implements Listener
 				if (!data.mustOpen)
 				{
 					List<ItemStack> items = getAllContents(data.inventories);
-					putItemsInStorage(data.bounds, items);
+					items = putItemsInStorage(data.bounds, items);
 					storageData.remove(p);
+					if (!items.isEmpty())
+						for (ItemStack i: items)
+							p.getWorld().dropItem(p.getLocation(), i);
 				}
 				else
 					data.mustOpen = false;
@@ -447,6 +464,7 @@ public class ComplexStorage extends JavaPlugin implements Listener
 	private List<ItemStack> putItemsInStorage(CoordinatePair pair, List<ItemStack> items)
 	{
 		Chest chest;
+		Material mat;
 		Inventory inventory;
 		World w = pair.start.getWorld();
 		int index = 0;
@@ -457,26 +475,43 @@ public class ComplexStorage extends JavaPlugin implements Listener
 			for (int y = pair.start.getBlockY() + 1; y < pair.end.getBlockY(); y++)
 				for (int z = pair.start.getBlockZ() + 1; z < pair.end.getBlockZ(); z++)
 				{
-					chest = (Chest) w.getBlockAt(x, y, z).getState();
-					inventory = chest.getBlockInventory();
-					inventory.clear();
-					if (mustPut)
-						for (int i = 0; i < inventory.getSize(); i++)
-						{
-							ItemStack item = items.get(index);
-							if (item != null)
+					mat = w.getBlockAt(x, y, z).getType();
+					if (isChest(mat))
+					{
+						chest = (Chest) w.getBlockAt(x, y, z).getState();
+						inventory = chest.getBlockInventory();
+						inventory.clear();
+						if (mustPut)
+							for (int i = 0; i < inventory.getSize(); i++)
 							{
-								inventory.addItem(item);
-								itemsRemain.remove(item);
+								ItemStack item = items.get(index);
+								if (item != null)
+								{
+									inventory.addItem(item);
+									itemsRemain.remove(item);
+								}
+								index++;
+								if (index >= items.size())
+								{
+									mustPut = false;
+									break;
+								}
 							}
-							index++;
-							if (index >= items.size())
-							{
-								mustPut = false;
-								break;
-							}
-						}
+					}	
 				}
 		return itemsRemain;
+	}
+	
+	private boolean isStorageInUse(CoordinatePair bounds)
+	{
+		for (StorageData sd: storageData.values())
+			if (sd.bounds.equals(bounds))
+				return true;
+		return false;
+	}
+	
+	private boolean isChest(Material mat)
+	{
+		return mat == Material.CHEST || mat == Material.TRAPPED_CHEST;
 	}
 }
