@@ -12,6 +12,7 @@ materials:
 size:
 *  minimum: 4 - minimum size of storage box (by frame);
 *  maximum: 20 - maximum size of storage box (by frame);
+*  rows: 4 - size of inventory in rows, [2..6], last row used for page selection;
 
 title:
 *  back: §r§2Previous - title of left arrow in the interface;

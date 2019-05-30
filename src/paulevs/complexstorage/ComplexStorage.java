@@ -85,12 +85,16 @@ public class ComplexStorage extends JavaPlugin implements Listener
 	private static String inUsage = "This storage is in use now";
 	private static String titleFormat = "Page %d of %d";
 	
+	private static int inventoryRows = 4;
+	private static int itemCount;
+	
 	@Override
 	public void onEnable()
 	{
 		getServer().getPluginManager().registerEvents(this, this);
 		loadConfig();
 		initFillers();
+		itemCount = (inventoryRows - 1) * 9;
 	}
 	
 	private void initFillers()
@@ -151,6 +155,14 @@ public class ComplexStorage extends JavaPlugin implements Listener
 			getConfig().set("message.in-usage", inUsage);
 		inUsage = getConfig().getString("message.in-usage", inUsage);
 		
+		if (!getConfig().contains("size.rows"))
+			getConfig().set("size.rows", inventoryRows);
+		inventoryRows = getConfig().getInt("size.rows", inventoryRows);
+		if (inventoryRows > 6)
+			inventoryRows = 6;
+		else if (inventoryRows < 2)
+			inventoryRows = 2;
+		
 		saveConfig();
 	}
 	
@@ -172,15 +184,21 @@ public class ComplexStorage extends JavaPlugin implements Listener
 				{
 					List<ItemStack> items = getContainedItems(bounds);
 					Collections.sort(items, new SortByName());
-					Inventory[] inv = new Inventory[countStorageSpace(bounds)];
+					int chestCount = countStorageSpace(bounds);
+					int totalItemCount = chestCount * 27;
+					Inventory[] inv = new Inventory[(int) Math.round((float) totalItemCount / itemCount)];
+					int lastSize = totalItemCount - (inv.length - 1) * itemCount;
 					int index = 0;
 					boolean add = items.size() > 0;
 					for (int i = 0; i < inv.length; i++)
 					{
-						inv[i] = Bukkit.createInventory(null, 36, String.format(titleFormat, i + 1, inv.length));
+						if (i < inv.length - 1)
+							inv[i] = Bukkit.createInventory(null, itemCount + 9, String.format(titleFormat, i + 1, inv.length));
+						else
+							inv[i] = Bukkit.createInventory(null, lastSize + 9, String.format(titleFormat, i + 1, inv.length));
 						fillControls(inv[i]);
 						if (add)
-							for (int j = 0; j < 27; j++)
+							for (int j = 0; j < inv[i].getSize() - 9; j++)
 							{
 								inv[i].setItem(j, items.get(index++));
 								if (index >= items.size())
@@ -237,9 +255,11 @@ public class ComplexStorage extends JavaPlugin implements Listener
 			if (storageData.containsKey(p))
 			{
 				StorageData data = storageData.get(p);
-				if (e.getRawSlot() > 26 && e.getRawSlot() < 36)
+				int startSlotID = data.inventories[data.index].getSize() - 9;
+				int endSlotID = startSlotID + 8;
+				if (e.getRawSlot() >= startSlotID && e.getRawSlot() <= endSlotID)
 					e.setCancelled(true);
-				if (e.getRawSlot() == 27)
+				if (e.getRawSlot() == startSlotID)
 				{
 					int index = data.index - 1;
 					if (index < 0)
@@ -248,7 +268,7 @@ public class ComplexStorage extends JavaPlugin implements Listener
 					data.index = index;
 					p.openInventory(data.inventories[index]);
 				}
-				else if (e.getRawSlot() == 35)
+				else if (e.getRawSlot() == endSlotID)
 				{
 					int index = data.index + 1;
 					if (index >= data.inventories.length)
@@ -310,7 +330,7 @@ public class ComplexStorage extends JavaPlugin implements Listener
 	{
 		List<ItemStack> items = new ArrayList<ItemStack>();
 		for (Inventory i: inv)
-			for (int j = 0; j < 27; j++)
+			for (int j = 0; j < i.getSize() - 9; j++)
 			{
 				ItemStack item = i.getItem(j);
 				if (item != null)
@@ -331,9 +351,11 @@ public class ComplexStorage extends JavaPlugin implements Listener
 	
 	private void fillControls(Inventory inv)
 	{
-		inv.setItem(27, arrowBack.clone());
-		inv.setItem(35, arrowNext.clone());
-		for (int i = 28; i < 35; i++)
+		int backPos = inv.getSize() - 9;
+		int nextPos = backPos + 8;
+		inv.setItem(backPos, arrowBack.clone());
+		inv.setItem(nextPos, arrowNext.clone());
+		for (int i = backPos + 1; i < nextPos; i++)
 			inv.setItem(i, whiteFiller.clone());
 	}
 	
@@ -482,7 +504,7 @@ public class ComplexStorage extends JavaPlugin implements Listener
 						inventory = chest.getBlockInventory();
 						inventory.clear();
 						if (mustPut)
-							for (int i = 0; i < inventory.getSize(); i++)
+							for (int i = 0; i < 27; i++)
 							{
 								ItemStack item = items.get(index);
 								if (item != null)
