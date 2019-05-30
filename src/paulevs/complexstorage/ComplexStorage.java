@@ -186,7 +186,7 @@ public class ComplexStorage extends JavaPlugin implements Listener
 					Collections.sort(items, new SortByName());
 					int chestCount = countStorageSpace(bounds);
 					int totalItemCount = chestCount * 27;
-					Inventory[] inv = new Inventory[(int) Math.round((float) totalItemCount / itemCount)];
+					Inventory[] inv = new Inventory[(int) Math.ceil((float) totalItemCount / itemCount)];
 					int lastSize = totalItemCount - (inv.length - 1) * itemCount;
 					int index = 0;
 					boolean add = items.size() > 0;
